@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Web3 Lab Practice Execution</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.1/dist/web3.min.js"></script>
+</head>
+<body style="font-family: Arial, sans-serif; padding: 20px;">
+
+    <h2>Web3 Lab Execution Gateway</h2>
+    <button id="connectBtn" onclick="initWeb3()">Connect MetaMask</button>
+    <p id="walletAddress">Status: Wallet Not Connected</p>
+
+    <hr/>
+
+    <h3>Interact with Contract</h3>
+    <input type="number" id="inputData" placeholder="Enter Value to Set">
+    <button onclick="writeToBlockchain()">Send Data</button>
+    <button onclick="readFromBlockchain()">Fetch Current Data</button>
+    <p id="displayArea"></p>
+
+    <script>
+        let web3Instance;
+        let activeAccount;
+        let deployedContract;
+
+        // Note: For actual testing, replace these with your compiled contract's details
+        const contractAddress = "0x5346067000000000000000000000000000000000"; 
+        const contractABI = [
+            { "inputs": [{ "internalType": "uint256", "name": "x", "type": "uint256" }], "name": "set", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+            { "inputs": [], "name": "get", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" }
+        ];
+
+        async function initWeb3() {
+            if (window.ethereum) {
+                try {
+                    web3Instance = new Web3(window.ethereum);
+                    // Requests wallet connection from MetaMask
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    activeAccount = accounts[0];
+                    document.getElementById("walletAddress").innerText = "Connected to: " + activeAccount;
+                    
+                    deployedContract = new web3Instance.eth.Contract(contractABI, contractAddress);
+                } catch (error) {
+                    console.error("User denied account access");
+                }
+            } else {
+                alert("MetaMask extension not discovered. Please install it.");
+            }
+        }
+
+        async function writeToBlockchain() {
+            const numericValue = document.getElementById("inputData").value;
+            if(!deployedContract) return alert("Connect your wallet setup first!");
+            
+            document.getElementById("displayArea").innerText = "Processing transaction hash...";
+            // Triggers a MetaMask transaction pop-up signature request
+            await deployedContract.methods.set(numericValue).send({ from: activeAccount });
+            document.getElementById("displayArea").innerText = "Transaction confirmed successfully!";
+        }
+
+        async function readFromBlockchain() {
+            if(!deployedContract) return alert("Connect your wallet setup first!");
+            const outcome = await deployedContract.methods.get().call();
+            document.getElementById("displayArea").innerText = "Value pulled from contract state: " + outcome;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Universal BDLT Web3 Controller</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.1/dist/web3.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; background-color: #f4f6f9; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        textarea, input { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #0056b3; }
+        .status { font-weight: bold; color: #28a745; margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+    <h2>Universal Blockchain Lab Interface</h2>
+    
+    <div class="card">
+        <h3>1. Gateway Authorization</h3>
+        <button onclick="connectWallet()">Connect MetaMask Wallet</button>
+        <p id="walletStatus" class="status">Status: Disconnected</p>
+    </div>
+
+    <div class="card">
+        <h3>2. Contract Alignment</h3>
+        <label>Target Contract Address:</label>
+        <input type="text" id="targetAddress" placeholder="0x...">
+        
+        <label>Target Contract ABI (Copy from Remix Compiler Metadata):</label>
+        <textarea id="targetABI" rows="5" placeholder='[{"inputs":[],"name":"myFunction",...}]'></textarea>
+        
+        <button onclick="loadContract()">Attach & Load Contract</button>
+        <p id="contractStatus" class="status">Status: No active contract loaded</p>
+    </div>
+
+    <div class="card">
+        <h3>3. Low-Level Execution Panel</h3>
+        <p>To execute functions without a custom UI, enter the precise function signature and parameter inputs below:</p>
+        
+        <label>Function Name (e.g., <code>vote</code> or <code>deposit</code>):</label>
+        <input type="text" id="funcName" placeholder="vote">
+        
+        <label>Arguments / Inputs (Comma-separated if multiple, leave blank if none):</label>
+        <input type="text" id="funcArgs" placeholder="0">
+
+        <label>Ether Value (Optional - Use only for <code>payable</code> functions like deposit/donate):</label>
+        <input type="text" id="ethValue" placeholder="0.01">
+        
+        <button onclick="executeWrite()">Send Transaction (Write)</button>
+        <button onclick="executeRead()" style="background-color: #28a745;">Query State (Read)</button>
+        
+        <hr/>
+        <h4>Execution Output Log:</h4>
+        <p id="consoleLog" style="font-family: monospace; background: #eee; padding: 10px; border-radius: 4px; min-height: 40px; white-space: pre-wrap;">Awaiting user instruction...</p>
+    </div>
+
+    <script>
+        let web3;
+        let account;
+        let activeContract;
+
+        async function connectWallet() {
+            if (window.ethereum) {
+                web3 = new Web3(window.ethereum);
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                account = accounts[0];
+                document.getElementById("walletStatus").innerText = "Connected Wallet Address: " + account;
+            } else {
+                alert("MetaMask extension not found!");
+            }
+        }
+
+        function loadContract() {
+            const addr = document.getElementById("targetAddress").value.trim();
+            const abiString = document.getElementById("targetABI").value.trim();
+
+            if (!addr || !abiString) return alert("Please supply both an address and an ABI string.");
+
+            try {
+                const parsedABI = JSON.parse(abiString);
+                activeContract = new web3.eth.Contract(parsedABI, addr);
+                document.getElementById("contractStatus").innerText = "Successfully mapped target contract at: " + addr;
+                document.getElementById("consoleLog").innerText = "Ready to handle transactions.";
+            } catch (err) {
+                alert("ABI parsing failure. Ensure you copied valid JSON formatting.");
+            }
+        }
+
+        async function executeWrite() {
+            if (!activeContract) return alert("Load a target contract first!");
+            const method = document.getElementById("funcName").value.trim();
+            const argsString = document.getElementById("funcArgs").value.trim();
+            const ethVal = document.getElementById("ethValue").value.trim();
+
+            const args = argsString ? argsString.split(',') : [];
+            document.getElementById("consoleLog").innerText = "Awaiting signature confirmation from MetaMask...";
+
+            try {
+                let txOptions = { from: account };
+                if (ethVal && parseFloat(ethVal) > 0) {
+                    txOptions.value = web3.utils.toWei(ethVal, 'ether');
+                }
+
+                const recipe = await activeContract.methods[method](...args).send(txOptions);
+                document.getElementById("consoleLog").innerText = "Transaction Settled!\nHash: " + recipe.transactionHash;
+            } catch (err) {
+                document.getElementById("consoleLog").innerText = "Execution Error:\n" + err.message;
+            }
+        }
+
+        async function executeRead() {
+            if (!activeContract) return alert("Load a target contract first!");
+            const method = document.getElementById("funcName").value.trim();
+            const argsString = document.getElementById("funcArgs").value.trim();
+            const args = argsString ? argsString.split(',') : [];
+
+            document.getElementById("consoleLog").innerText = "Querying blockchain data storage states...";
+
+            try {
+                const result = await activeContract.methods[method](...args).call();
+                document.getElementById("consoleLog").innerText = "State Read Result:\n" + JSON.stringify(result, null, 2);
+            } catch (err) {
+                document.getElementById("consoleLog").innerText = "Query Error:\n" + err.message;
+            }
+        }
+    </script>
+</body>
+</html>
